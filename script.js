@@ -4,7 +4,6 @@ const FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news";
 
 const STORAGE_KEY_SYMBOLS = "market-dashboard-symbols";
 const STORAGE_KEY_TILE_ORDER = "market-dashboard-tile-order";
-const STORAGE_KEY_INVESTMENTS = "market-dashboard-investments";
 
 const INITIAL_SYMBOLS = [
   { symbol: "WDC", name: "Western Digital (WDC)" },
@@ -16,13 +15,12 @@ const NAME_OVERRIDES = {
   "BINANCE:BTCUSDT": "Bitcoin (BTC)",
 };
 
-const DEFAULT_TILE_ORDER = ["stocks", "time", "news", "calendar"];
+const DEFAULT_TILE_ORDER = ["stocks", "time", "news", "notes", "calendar"];
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const trackedSymbols = loadSavedSymbols();
 const previousPrices = new Map();
 const quoteHistory = new Map();
-const investments = loadInvestments();
 
 const quotesBody = document.getElementById("quotes-body");
 const quoteUpdatedEl = document.getElementById("quote-updated");
@@ -40,6 +38,7 @@ const refreshBtn = document.getElementById("refresh-btn");
 const googleFinanceBtn = document.getElementById("google-finance-btn");
 const resetLayoutBtn = document.getElementById("reset-layout-btn");
 const dashboardGrid = document.getElementById("dashboard-grid");
+const notesPad = document.getElementById("notes-pad");
 
 const toggleTrendPanelBtn = document.getElementById("toggle-trend-panel");
 const closeTrendPanelBtn = document.getElementById("close-trend-panel");
@@ -72,19 +71,6 @@ function saveSymbols() {
   localStorage.setItem(STORAGE_KEY_SYMBOLS, JSON.stringify(trackedSymbols));
 }
 
-function loadInvestments() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_INVESTMENTS);
-    const parsed = JSON.parse(raw || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveInvestments() {
-  localStorage.setItem(STORAGE_KEY_INVESTMENTS, JSON.stringify(investments));
-}
 
 function formatCurrency(value) {
   if (typeof value !== "number" || Number.isNaN(value)) return "--";
@@ -129,29 +115,6 @@ function updateHistory(symbol, price) {
   quoteHistory.set(symbol, updated);
 }
 
-function getInvestment(symbol) {
-  const inv = investments[symbol];
-  if (!inv) return { buyPrice: "", quantity: "" };
-  return { buyPrice: String(inv.buyPrice ?? ""), quantity: String(inv.quantity ?? "") };
-}
-
-function calculatePL(symbol, current) {
-  const inv = investments[symbol];
-  if (!inv || typeof inv.buyPrice !== "number" || typeof inv.quantity !== "number") {
-    return { text: "Set buy", className: "pl-neutral" };
-  }
-
-  const diffPerUnit = current - inv.buyPrice;
-  const total = diffPerUnit * inv.quantity;
-  const pct = inv.buyPrice === 0 ? 0 : (diffPerUnit / inv.buyPrice) * 100;
-  const className = total > 0 ? "pl-positive" : total < 0 ? "pl-negative" : "pl-neutral";
-  const sign = total > 0 ? "+" : "";
-
-  return {
-    text: `${sign}${formatCurrency(total)} (${sign}${pct.toFixed(2)}%)`,
-    className,
-  };
-}
 
 async function fetchQuote(symbolObj) {
   const response = await fetch(quoteUrl(symbolObj.symbol));
@@ -195,10 +158,7 @@ function removeSymbol(symbol) {
   trackedSymbols.splice(index, 1);
   previousPrices.delete(symbol);
   quoteHistory.delete(symbol);
-  delete investments[symbol];
-
   saveSymbols();
-  saveInvestments();
   refreshTrendSymbols();
   loadQuotes();
   loadNewsForTrackedSymbols();
@@ -211,23 +171,16 @@ function renderQuotes(rows) {
     const tr = document.createElement("tr");
     const changeClass = row.change > 0 ? "positive" : row.change < 0 ? "negative" : "";
     const trend = trendInfo(row);
-    const inv = getInvestment(row.symbol);
-    const pl = calculatePL(row.symbol, row.current);
-
     tr.innerHTML = `
       <td>${row.name} (${row.symbol})</td>
       <td>${formatCurrency(row.current)}</td>
       <td class="${changeClass}">${typeof row.change === "number" ? row.change.toFixed(2) : "--"}</td>
       <td class="${changeClass}">${formatPercent(row.percentChange)}</td>
       <td><span class="trend-badge ${trend.className}"><span class="pulse"></span>${trend.icon} ${trend.label}</span></td>
-      <td><input class="invest-input" data-invest-buy="${row.symbol}" type="number" step="0.0001" min="0" placeholder="buy" value="${inv.buyPrice}" /></td>
-      <td><input class="invest-input" data-invest-qty="${row.symbol}" type="number" step="0.0001" min="0" placeholder="qty" value="${inv.quantity}" /></td>
-      <td class="${pl.className}">${pl.text}</td>
       <td>${formatCurrency(row.high)}</td>
       <td>${formatCurrency(row.low)}</td>
       <td>
         <a class="row-action" target="_blank" rel="noreferrer" href="${googleFinanceUrl(row.symbol)}">Finance</a>
-        <button class="row-action secondary" data-save-invest="${row.symbol}">Save Buy</button>
         <button class="row-action remove" data-remove-symbol="${row.symbol}">Remove</button>
       </td>
     `;
@@ -239,24 +192,6 @@ function renderQuotes(rows) {
     button.addEventListener("click", () => removeSymbol(button.dataset.removeSymbol));
   });
 
-  quotesBody.querySelectorAll("button[data-save-invest]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const symbol = button.dataset.saveInvest;
-      const buyInput = quotesBody.querySelector(`input[data-invest-buy="${symbol}"]`);
-      const qtyInput = quotesBody.querySelector(`input[data-invest-qty="${symbol}"]`);
-      const buyPrice = Number(buyInput?.value);
-      const quantity = Number(qtyInput?.value);
-
-      if (!Number.isFinite(buyPrice) || buyPrice <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
-        quoteUpdatedEl.textContent = `Invalid buy/quantity for ${symbol}.`;
-        return;
-      }
-
-      investments[symbol] = { buyPrice, quantity };
-      saveInvestments();
-      loadQuotes();
-    });
-  });
 }
 
 async function loadQuotes() {
@@ -777,6 +712,16 @@ function closeTrendPanel() {
   toggleTrendPanelBtn.setAttribute("aria-expanded", "false");
 }
 
+
+function loadNotes() {
+  const saved = localStorage.getItem("market-dashboard-notes") || "";
+  notesPad.value = saved;
+}
+
+function saveNotes() {
+  localStorage.setItem("market-dashboard-notes", notesPad.value);
+}
+
 function wireEvents() {
   addSymbolBtn.addEventListener("click", addSymbol);
   refreshBtn.addEventListener("click", () => {
@@ -803,6 +748,8 @@ function wireEvents() {
   });
 
   closeTrendPanelBtn.addEventListener("click", closeTrendPanel);
+  notesPad.addEventListener("input", saveNotes);
+
   trendSymbolSelect.addEventListener("change", () => {
     updateTrendGoogleLink();
     drawTrendChart();
@@ -815,6 +762,7 @@ function init() {
   wireTileDragAndDrop();
   wireEvents();
   refreshTrendSymbols();
+  loadNotes();
 
   loadQuotes();
   loadNewsForTrackedSymbols();

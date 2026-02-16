@@ -35,9 +35,8 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe 
 .drag-handle { color:#8ca4d1; font-weight:700; margin-left:.35rem; font-size:.9rem; }
 
 .stock-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.45rem; margin-bottom:.25rem; }
-.stock-controls input, .trend-controls select, .invest-input { background:#0d1627; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:.45rem .55rem; }
+.stock-controls input, .trend-controls select { background:#0d1627; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:.45rem .55rem; }
 .stock-controls input { min-width:220px; }
-.invest-input { width: 86px; font-size: .78rem; }
 
 .stock-controls button, .button-link, .row-action, .layout-toolbar button, .trend-tab, .trend-panel-header button {
   border:1px solid #3364c2; background:#2563eb; color:#fff; border-radius:8px; padding:.52rem .8rem;
@@ -51,8 +50,8 @@ body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe 
 .control-hint { margin:.15rem 0 .7rem; }
 
 .table-wrap { overflow-x:auto; }
-table { width:100%; border-collapse:collapse; min-width:1180px; }
-th,td { text-align:left; padding:.58rem .45rem; border-bottom:1px solid var(--line); vertical-align: middle; }
+table { width:100%; border-collapse:collapse; table-layout: fixed; }
+th,td { text-align:left; padding:.52rem .4rem; border-bottom:1px solid var(--line); vertical-align: middle; word-wrap: break-word; }
 th { font-size:.82rem; color:var(--subtle); letter-spacing:.01em; }
 
 .trend-badge { display:inline-flex; align-items:center; gap:.3rem; font-size:.82rem; padding:.2rem .5rem; border-radius:999px; border:1px solid transparent; }
@@ -99,6 +98,19 @@ th { font-size:.82rem; color:var(--subtle); letter-spacing:.01em; }
 .subheading { margin:.8rem 0 .45rem; font-size:.98rem; }
 .positive { color:var(--positive); font-weight:600; }
 .negative { color:var(--negative); font-weight:600; }
+
+.notes-pad {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0d1627;
+  color: var(--text);
+  padding: .7rem;
+  font-family: inherit;
+  line-height: 1.4;
+}
 
 .trend-tab { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 30; box-shadow: var(--shadow); }
 .trend-panel { position: fixed; right: 1.25rem; bottom: 4.4rem; width: min(760px, calc(100vw - 2.5rem)); max-height: 72vh; overflow: auto; padding: .85rem; border-radius: 14px; border: 1px solid var(--line); background: linear-gradient(180deg, var(--card) 0%, var(--card-alt) 100%); box-shadow: var(--shadow); z-index: 30; }

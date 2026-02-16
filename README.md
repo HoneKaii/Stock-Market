@@ -15,10 +15,6 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
    - Per-row **Finance** action for quick symbol lookup.
    - Live quote data from Finnhub.
    - **Live Trend** column (rising/falling/flat) based on real-time price movement.
-   - **Investment compare** per symbol:
-     - set Buy Price + Quantity,
-     - save per stock,
-     - see live P/L vs current price.
 2. **Dual Clocks + Market Session Status**
    - ET and NZT clocks.
    - NYSE regular-hours status (9:30 AM–4:00 PM ET).
@@ -40,6 +36,9 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
    - Floating **Live Trends** tab opens a minimizable panel.
    - Trend line is drawn from the **same existing quote stream** used by the main table.
    - No separate trend polling loop.
+7. **Notes Pad**
+   - Built-in notepad section for strategy notes and reminders.
+   - Notes are saved in browser localStorage.
 
 ## GitHub Pages compatibility note
 
@@ -75,11 +74,11 @@ Validation checks:
 - New symbol input adds valid symbols to the tracked table.
 - Remove action removes symbol and updates related news.
 - Google Finance button opens symbol page from input.
-- Investment buy/quantity save is per-symbol and P/L updates live.
 - Live Trend column changes between Rising/Falling/Flat based on quote movement.
 - Latest News section updates based on tracked symbols.
 - Dashboard tiles can be dragged, snapped into grid positions, and reset to default layout.
 - Live trend drawer opens/minimizes and uses existing quote history stream.
+- Notes pad saves and restores notes locally.
 - Session badge changes between OPEN/CLOSED correctly.
 - Countdown timer updates each second.
 - Calendar shows the current month with holiday names on holiday days.

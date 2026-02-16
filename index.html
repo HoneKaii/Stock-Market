@@ -51,9 +51,6 @@
                 <th>Change</th>
                 <th>% Change</th>
                 <th>Live Trend</th>
-                <th>Buy Price</th>
-                <th>Quantity</th>
-                <th>P/L vs Buy</th>
                 <th>Day High</th>
                 <th>Day Low</th>
                 <th>Actions</th>
@@ -100,6 +97,15 @@
         <ul id="news-list" class="news-list">
           <li>Loading news...</li>
         </ul>
+      </section>
+
+
+      <section class="card dashboard-tile tile-small" data-tile-id="notes" draggable="true" aria-labelledby="notes-title">
+        <div class="card-heading">
+          <h2 id="notes-title">Notes <span class="drag-handle" title="Drag tile">⠿</span></h2>
+          <span class="subtle">Saved in your browser.</span>
+        </div>
+        <textarea id="notes-pad" class="notes-pad" placeholder="Write notes about your positions, watchlist ideas, or reminders..."></textarea>
       </section>
 
       <section class="card dashboard-tile tile-large" data-tile-id="calendar" draggable="true" aria-labelledby="calendar-title">
