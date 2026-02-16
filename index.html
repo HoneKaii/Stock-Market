@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Market Pulse Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>📈 Market Pulse Dashboard</h1>
+      <p>
+        A static market dashboard for GitHub Pages with live quotes, market hours, and a built-in
+        trading calendar.
+      </p>
+      <p class="gh-pages-hint">
+        GitHub Pages tip: host this repository as-is and ensure <code>index.html</code> is at the
+        repository root.
+      </p>
+    </header>
+
+    <main class="dashboard-grid">
+      <section class="card" aria-labelledby="stocks-title">
+        <div class="card-heading">
+          <h2 id="stocks-title">Live Stock & Crypto Table</h2>
+          <span id="quote-updated" class="subtle">Waiting for first update…</span>
+        </div>
+
+        <div class="stock-controls" aria-label="Stock controls">
+          <label for="symbol-input" class="subtle">Add symbol:</label>
+          <input id="symbol-input" type="text" placeholder="e.g. AAPL, TSLA, MSFT" />
+          <button id="add-symbol-btn" type="button">Add</button>
+          <button id="refresh-btn" type="button" class="secondary">Refresh Now</button>
+        </div>
+        <p class="subtle control-hint">
+          Defaults include <strong>Western Digital (WDC)</strong> and <strong>Bitcoin (BTC)</strong>.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name & Symbol</th>
+                <th>Price</th>
+                <th>Change</th>
+                <th>% Change</th>
+                <th>Live Trend</th>
+                <th>Day High</th>
+                <th>Day Low</th>
+              </tr>
+            </thead>
+            <tbody id="quotes-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="time-title">
+        <div class="card-heading">
+          <h2 id="time-title">Dual Clocks & Market Session</h2>
+          <span class="subtle">ET regular session: 9:30 AM–4:00 PM</span>
+        </div>
+
+        <div class="clock-grid">
+          <div class="clock-box">
+            <h3>New York (ET)</h3>
+            <p id="clock-et" class="clock-time">--:--:--</p>
+            <p id="date-et" class="clock-date">Loading date…</p>
+          </div>
+          <div class="clock-box">
+            <h3>Auckland (NZT)</h3>
+            <p id="clock-nzt" class="clock-time">--:--:--</p>
+            <p id="date-nzt" class="clock-date">Loading date…</p>
+          </div>
+        </div>
+
+        <div class="status-wrap">
+          <p>
+            Session Status:
+            <strong id="market-status" class="status-pill neutral">Checking...</strong>
+          </p>
+          <p id="next-event">Calculating next market event...</p>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="calendar-title">
+        <div class="card-heading">
+          <h2 id="calendar-title">Market Calendar</h2>
+          <span class="subtle">Built-in NYSE holiday calendar (no external calendar API).</span>
+        </div>
+
+        <p id="calendar-month-title" class="calendar-month-title">Loading month…</p>
+
+        <div class="calendar-grid" id="calendar-grid" aria-label="Current month calendar"></div>
+
+        <div class="calendar-legend">
+          <span><i class="dot dot-holiday"></i>Market Holiday</span>
+          <span><i class="dot dot-weekend"></i>Weekend</span>
+          <span><i class="dot dot-trading"></i>Trading Day</span>
+        </div>
+
+        <h3 class="subheading">Holidays This Month</h3>
+        <ul id="holiday-list" class="days-list">
+          <li>Loading holidays…</li>
+        </ul>
+
+        <h3 class="subheading">Next 5 Trading Days</h3>
+        <ul id="trading-days-list" class="days-list">
+          <li>Loading trading days...</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <p>
+        API note: Finnhub is queried client-side for demo purposes. For production, proxy requests
+        through a backend to keep secrets safe.
+      </p>
+      <p>
+        GitHub Pages hint: set <code>Settings → Pages → Deploy from branch</code> and select
+        <code>main</code> / <code>root</code>.
+      </p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

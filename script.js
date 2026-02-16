@@ -1,0 +1,485 @@
+// Finnhub key provided for this task. Replace for your own deployment.
+const FINNHUB_API_KEY = "d695jlhr01qs7u9krk20d695jlhr01qs7u9krk2g";
+const FINNHUB_BASE_URL = "https://finnhub.io/api/v1/quote";
+
+const INITIAL_SYMBOLS = [
+  { symbol: "WDC", name: "Western Digital (WDC)" },
+  { symbol: "BINANCE:BTCUSDT", name: "Bitcoin (BTC)" },
+];
+
+const NAME_OVERRIDES = {
+  WDC: "Western Digital (WDC)",
+  "BINANCE:BTCUSDT": "Bitcoin (BTC)",
+};
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const trackedSymbols = [...INITIAL_SYMBOLS];
+const previousPrices = new Map();
+
+const quotesBody = document.getElementById("quotes-body");
+const quoteUpdatedEl = document.getElementById("quote-updated");
+const statusEl = document.getElementById("market-status");
+const nextEventEl = document.getElementById("next-event");
+const tradingDaysList = document.getElementById("trading-days-list");
+const holidayList = document.getElementById("holiday-list");
+const calendarGrid = document.getElementById("calendar-grid");
+const calendarMonthTitle = document.getElementById("calendar-month-title");
+
+const symbolInput = document.getElementById("symbol-input");
+const addSymbolBtn = document.getElementById("add-symbol-btn");
+const refreshBtn = document.getElementById("refresh-btn");
+
+const clockEtEl = document.getElementById("clock-et");
+const dateEtEl = document.getElementById("date-et");
+const clockNztEl = document.getElementById("clock-nzt");
+const dateNztEl = document.getElementById("date-nzt");
+
+function formatCurrency(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: value < 1 ? 4 : 2,
+    maximumFractionDigits: value < 1 ? 6 : 2,
+  }).format(value);
+}
+
+function formatPercent(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
+  return `${value.toFixed(2)}%`;
+}
+
+function quoteUrl(symbol) {
+  return `${FINNHUB_BASE_URL}?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_API_KEY}`;
+}
+
+async function fetchQuote(symbolObj) {
+  const response = await fetch(quoteUrl(symbolObj.symbol));
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${symbolObj.symbol}: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if ([data.c, data.h, data.l].some((n) => typeof n !== "number" || Number.isNaN(n))) {
+    throw new Error(`Invalid symbol or no quote data for ${symbolObj.symbol}`);
+  }
+
+  const previousPrice = previousPrices.get(symbolObj.symbol);
+  previousPrices.set(symbolObj.symbol, data.c);
+
+  return {
+    ...symbolObj,
+    current: data.c,
+    change: data.d,
+    percentChange: data.dp,
+    high: data.h,
+    low: data.l,
+    previousPrice,
+  };
+}
+
+function trendInfo(row) {
+  if (typeof row.previousPrice === "number") {
+    if (row.current > row.previousPrice) {
+      return { className: "up", label: "Rising", icon: "▲" };
+    }
+    if (row.current < row.previousPrice) {
+      return { className: "down", label: "Falling", icon: "▼" };
+    }
+    return { className: "flat", label: "Flat", icon: "•" };
+  }
+
+  if (row.change > 0) return { className: "up", label: "Up", icon: "▲" };
+  if (row.change < 0) return { className: "down", label: "Down", icon: "▼" };
+  return { className: "flat", label: "Flat", icon: "•" };
+}
+
+function renderQuotes(rows) {
+  quotesBody.innerHTML = "";
+
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    const changeClass = row.change > 0 ? "positive" : row.change < 0 ? "negative" : "";
+    const trend = trendInfo(row);
+
+    tr.innerHTML = `
+      <td>${row.name} (${row.symbol})</td>
+      <td>${formatCurrency(row.current)}</td>
+      <td class="${changeClass}">${typeof row.change === "number" ? row.change.toFixed(2) : "--"}</td>
+      <td class="${changeClass}">${formatPercent(row.percentChange)}</td>
+      <td>
+        <span class="trend-badge ${trend.className}">
+          <span class="pulse"></span>${trend.icon} ${trend.label}
+        </span>
+      </td>
+      <td>${formatCurrency(row.high)}</td>
+      <td>${formatCurrency(row.low)}</td>
+    `;
+
+    quotesBody.appendChild(tr);
+  });
+}
+
+async function loadQuotes() {
+  try {
+    const rows = await Promise.all(trackedSymbols.map(fetchQuote));
+    renderQuotes(rows);
+    quoteUpdatedEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  } catch (error) {
+    quoteUpdatedEl.textContent = `Quote update failed: ${error.message}`;
+  }
+}
+
+function normalizeSymbol(input) {
+  return input.trim().toUpperCase();
+}
+
+function getDisplayName(symbol) {
+  return NAME_OVERRIDES[symbol] || `${symbol} (${symbol})`;
+}
+
+async function addSymbol() {
+  const raw = symbolInput.value;
+  const symbol = normalizeSymbol(raw);
+  if (!symbol) return;
+
+  if (trackedSymbols.some((item) => item.symbol === symbol)) {
+    quoteUpdatedEl.textContent = `${symbol} is already in the table.`;
+    symbolInput.value = "";
+    return;
+  }
+
+  const candidate = { symbol, name: getDisplayName(symbol) };
+
+  try {
+    await fetchQuote(candidate);
+    trackedSymbols.push(candidate);
+    symbolInput.value = "";
+    await loadQuotes();
+  } catch (error) {
+    quoteUpdatedEl.textContent = `Could not add ${symbol}: ${error.message}`;
+  }
+}
+
+function getTimeParts(timeZone) {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: true,
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return formatter.formatToParts(now).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+}
+
+function updateClocks() {
+  const et = getTimeParts("America/New_York");
+  clockEtEl.textContent = `${et.hour}:${et.minute}:${et.second} ${et.dayPeriod}`;
+  dateEtEl.textContent = `${et.weekday}, ${et.month} ${et.day}, ${et.year}`;
+
+  const nzt = getTimeParts("Pacific/Auckland");
+  clockNztEl.textContent = `${nzt.hour}:${nzt.minute}:${nzt.second} ${nzt.dayPeriod}`;
+  dateNztEl.textContent = `${nzt.weekday}, ${nzt.month} ${nzt.day}, ${nzt.year}`;
+}
+
+function toEtDate(date = new Date()) {
+  const etString = date.toLocaleString("en-US", { timeZone: "America/New_York" });
+  return new Date(etString);
+}
+
+function easterDate(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function observeHoliday(date) {
+  const observed = new Date(date);
+  const weekday = observed.getUTCDay();
+  if (weekday === 6) observed.setUTCDate(observed.getUTCDate() - 1);
+  if (weekday === 0) observed.setUTCDate(observed.getUTCDate() + 1);
+  return observed;
+}
+
+function nthWeekdayOfMonthUTC(year, month, weekday, nth) {
+  const date = new Date(Date.UTC(year, month, 1));
+  let count = 0;
+  while (date.getUTCMonth() === month) {
+    if (date.getUTCDay() === weekday) {
+      count += 1;
+      if (count === nth) return new Date(date);
+    }
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+  return null;
+}
+
+function lastWeekdayOfMonthUTC(year, month, weekday) {
+  const date = new Date(Date.UTC(year, month + 1, 0));
+  while (date.getUTCDay() !== weekday) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return date;
+}
+
+function getNyseHolidays(year) {
+  const easter = easterDate(year);
+  const goodFriday = new Date(easter);
+  goodFriday.setUTCDate(goodFriday.getUTCDate() - 2);
+
+  const holidays = [
+    { name: "New Year's Day", date: observeHoliday(new Date(Date.UTC(year, 0, 1))) },
+    { name: "Martin Luther King Jr. Day", date: nthWeekdayOfMonthUTC(year, 0, 1, 3) },
+    { name: "Presidents' Day", date: nthWeekdayOfMonthUTC(year, 1, 1, 3) },
+    { name: "Good Friday", date: goodFriday },
+    { name: "Memorial Day", date: lastWeekdayOfMonthUTC(year, 4, 1) },
+    { name: "Juneteenth", date: observeHoliday(new Date(Date.UTC(year, 5, 19))) },
+    { name: "Independence Day", date: observeHoliday(new Date(Date.UTC(year, 6, 4))) },
+    { name: "Labor Day", date: nthWeekdayOfMonthUTC(year, 8, 1, 1) },
+    { name: "Thanksgiving Day", date: nthWeekdayOfMonthUTC(year, 10, 4, 4) },
+    { name: "Christmas Day", date: observeHoliday(new Date(Date.UTC(year, 11, 25))) },
+  ]
+    .filter((holiday) => holiday.date)
+    .map((holiday) => ({
+      ...holiday,
+      key: holiday.date.toISOString().slice(0, 10),
+    }));
+
+  const byDate = new Map(holidays.map((holiday) => [holiday.key, holiday.name]));
+  return { holidays, byDate };
+}
+
+function toUtcKey(localDate) {
+  return new Date(Date.UTC(localDate.getFullYear(), localDate.getMonth(), localDate.getDate()))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function isTradingDay(etDate) {
+  const day = etDate.getDay();
+  if (day === 0 || day === 6) return false;
+
+  const dateKey = toUtcKey(etDate);
+  const { byDate } = getNyseHolidays(etDate.getFullYear());
+  return !byDate.has(dateKey);
+}
+
+function nextTradingDays(startDate, count = 5) {
+  const result = [];
+  const cursor = new Date(startDate);
+
+  while (result.length < count) {
+    if (isTradingDay(cursor)) {
+      result.push(new Date(cursor));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return result;
+}
+
+function renderTradingDays() {
+  const etNow = toEtDate();
+  const days = nextTradingDays(etNow, 5);
+  tradingDaysList.innerHTML = "";
+
+  days.forEach((day, i) => {
+    const li = document.createElement("li");
+    const friendly = day.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "America/New_York",
+    });
+    li.textContent = `${i + 1}. ${friendly}`;
+    tradingDaysList.appendChild(li);
+  });
+}
+
+function renderHolidayCalendar() {
+  const etNow = toEtDate();
+  const year = etNow.getFullYear();
+  const month = etNow.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+  const firstWeekday = monthStart.getDay();
+  const totalDays = monthEnd.getDate();
+  const { holidays, byDate } = getNyseHolidays(year);
+
+  calendarMonthTitle.textContent = monthStart.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "America/New_York",
+  });
+
+  calendarGrid.innerHTML = "";
+  WEEKDAY_LABELS.forEach((dayLabel) => {
+    const header = document.createElement("div");
+    header.className = "calendar-cell weekday-header";
+    header.textContent = dayLabel;
+    calendarGrid.appendChild(header);
+  });
+
+  for (let i = 0; i < firstWeekday; i += 1) {
+    const empty = document.createElement("div");
+    empty.className = "calendar-cell empty";
+    calendarGrid.appendChild(empty);
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    const d = new Date(year, month, day);
+    const key = toUtcKey(d);
+    const holidayName = byDate.get(key);
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+
+    const cell = document.createElement("div");
+    cell.className = `calendar-cell${holidayName ? " holiday" : ""}${isWeekend ? " weekend" : ""}`;
+
+    const num = document.createElement("div");
+    num.className = "day-number";
+    num.textContent = String(day);
+    cell.appendChild(num);
+
+    const label = document.createElement("div");
+    label.className = `day-label${holidayName ? " holiday" : ""}`;
+    label.textContent = holidayName || (isWeekend ? "Weekend" : "Trading");
+    cell.appendChild(label);
+
+    calendarGrid.appendChild(cell);
+  }
+
+  holidayList.innerHTML = "";
+  const monthHolidays = holidays.filter((holiday) => {
+    const holidayDate = new Date(holiday.date);
+    return holidayDate.getUTCMonth() === month;
+  });
+
+  if (monthHolidays.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No NYSE market holidays this month.";
+    holidayList.appendChild(li);
+    return;
+  }
+
+  monthHolidays.forEach((holiday) => {
+    const li = document.createElement("li");
+    const humanDate = holiday.date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "America/New_York",
+    });
+    li.textContent = `${holiday.name}: ${humanDate}`;
+    holidayList.appendChild(li);
+  });
+}
+
+function buildEtDateForToday(hour, minute, second = 0) {
+  const nowEt = toEtDate();
+  return new Date(
+    nowEt.getFullYear(),
+    nowEt.getMonth(),
+    nowEt.getDate(),
+    hour,
+    minute,
+    second,
+    0,
+  );
+}
+
+function formatDuration(ms) {
+  if (ms <= 0) return "0m";
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function updateMarketStatus() {
+  const nowEt = toEtDate();
+  const open = buildEtDateForToday(9, 30);
+  const close = buildEtDateForToday(16, 0);
+  const tradingDay = isTradingDay(nowEt);
+  const currentlyOpen = tradingDay && nowEt >= open && nowEt < close;
+
+  statusEl.classList.remove("open", "closed", "neutral");
+
+  if (currentlyOpen) {
+    statusEl.textContent = "OPEN";
+    statusEl.classList.add("open");
+    nextEventEl.textContent = `Time until market close: ${formatDuration(close - nowEt)}`;
+    return;
+  }
+
+  statusEl.textContent = "CLOSED";
+  statusEl.classList.add("closed");
+
+  let nextOpen = new Date(nowEt);
+  if (tradingDay && nowEt < open) {
+    nextOpen = open;
+  } else {
+    nextOpen.setDate(nextOpen.getDate() + 1);
+    nextOpen.setHours(9, 30, 0, 0);
+    while (!isTradingDay(nextOpen)) {
+      nextOpen.setDate(nextOpen.getDate() + 1);
+      nextOpen.setHours(9, 30, 0, 0);
+    }
+  }
+
+  nextEventEl.textContent = `Next market open in ${formatDuration(nextOpen - nowEt)} (${nextOpen.toLocaleString("en-US", { timeZone: "America/New_York" })} ET)`;
+}
+
+function wireEvents() {
+  addSymbolBtn.addEventListener("click", addSymbol);
+  refreshBtn.addEventListener("click", loadQuotes);
+  symbolInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addSymbol();
+    }
+  });
+}
+
+function init() {
+  wireEvents();
+  loadQuotes();
+  updateClocks();
+  updateMarketStatus();
+  renderTradingDays();
+  renderHolidayCalendar();
+
+  setInterval(updateClocks, 1000);
+  setInterval(updateMarketStatus, 1000);
+  setInterval(loadQuotes, 30000);
+}
+
+init();
