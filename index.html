@@ -51,6 +51,9 @@
                 <th>Change</th>
                 <th>% Change</th>
                 <th>Live Trend</th>
+                <th>Buy Price</th>
+                <th>Quantity</th>
+                <th>P/L vs Buy</th>
                 <th>Day High</th>
                 <th>Day Low</th>
                 <th>Actions</th>
@@ -131,21 +134,19 @@
 
     <aside id="trend-panel" class="trend-panel hidden" aria-label="Live trend panel">
       <div class="trend-panel-header">
-        <h3>Live Draw Trends</h3>
+        <h3>Live Draw Trends (from current quote stream)</h3>
         <button id="close-trend-panel" type="button" class="secondary">Minimize</button>
       </div>
       <div class="trend-controls">
         <label for="trend-symbol" class="subtle">Symbol:</label>
         <select id="trend-symbol"></select>
-        <button id="trend-start-btn" type="button">Start</button>
-        <button id="trend-stop-btn" type="button" class="secondary">Stop</button>
-        <button id="trend-clear-btn" type="button" class="secondary">Clear</button>
+        <span id="trend-last-update" class="subtle">No points yet.</span>
         <a id="trend-google-link" class="button-link" target="_blank" rel="noreferrer">Google Finance</a>
       </div>
       <div class="trend-canvas-wrap">
         <canvas id="trend-canvas" width="1000" height="320"></canvas>
       </div>
-      <p id="trend-status" class="subtle">Waiting to start live draw…</p>
+      <p id="trend-status" class="subtle">Trend uses the same live quote updates as the main table.</p>
     </aside>
 
     <footer class="page-footer">

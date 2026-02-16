@@ -10,11 +10,15 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
      - Bitcoin (BTC)
    - Add any extra symbol from the UI search box (example: `AAPL`, `TSLA`).
    - Remove symbols directly from the table.
-   - Manual **Refresh Now** button plus automatic refresh (~30s).
+   - Manual **Refresh Now** button plus automatic refresh (~10s).
    - **Open in Google Finance** button for the symbol entered in the input.
    - Per-row **Finance** action for quick symbol lookup.
    - Live quote data from Finnhub.
    - **Live Trend** column (rising/falling/flat) based on real-time price movement.
+   - **Investment compare** per symbol:
+     - set Buy Price + Quantity,
+     - save per stock,
+     - see live P/L vs current price.
 2. **Dual Clocks + Market Session Status**
    - ET and NZT clocks.
    - NYSE regular-hours status (9:30 AM–4:00 PM ET).
@@ -34,12 +38,12 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
    - Layout order is saved in localStorage.
 6. **One-page Minimizable Live Trend Drawer**
    - Floating **Live Trends** tab opens a minimizable panel.
-   - Live chart for selected tracked symbol (start/stop/clear).
-   - Uses the same quote stream and symbol set as the dashboard.
+   - Trend line is drawn from the **same existing quote stream** used by the main table.
+   - No separate trend polling loop.
 
 ## GitHub Pages compatibility note
 
-The drag-and-drop tile snap behavior uses standard HTML5 Drag and Drop + CSS Grid, which is fully supported on modern desktop browsers served from GitHub Pages (no server-side features required).
+The tile drag/snap behavior uses standard HTML5 Drag and Drop + CSS Grid, which works on GitHub Pages because it is fully client-side (no backend needed).
 
 ## API configuration
 
@@ -66,15 +70,16 @@ python3 -m http.server 8080
 ```
 
 Validation checks:
-- Quotes update every ~30 seconds.
+- Quotes update every ~10 seconds.
 - “Refresh Now” updates quotes immediately.
 - New symbol input adds valid symbols to the tracked table.
 - Remove action removes symbol and updates related news.
 - Google Finance button opens symbol page from input.
+- Investment buy/quantity save is per-symbol and P/L updates live.
 - Live Trend column changes between Rising/Falling/Flat based on quote movement.
 - Latest News section updates based on tracked symbols.
 - Dashboard tiles can be dragged, snapped into grid positions, and reset to default layout.
-- Live trend drawer opens/minimizes and live chart updates over time.
+- Live trend drawer opens/minimizes and uses existing quote history stream.
 - Session badge changes between OPEN/CLOSED correctly.
 - Countdown timer updates each second.
 - Calendar shows the current month with holiday names on holiday days.

@@ -1,10 +1,10 @@
-// Finnhub key provided for this task. Replace for your own deployment.
 const FINNHUB_API_KEY = "d695jlhr01qs7u9krk20d695jlhr01qs7u9krk2g";
 const FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote";
 const FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news";
 
 const STORAGE_KEY_SYMBOLS = "market-dashboard-symbols";
 const STORAGE_KEY_TILE_ORDER = "market-dashboard-tile-order";
+const STORAGE_KEY_INVESTMENTS = "market-dashboard-investments";
 
 const INITIAL_SYMBOLS = [
   { symbol: "WDC", name: "Western Digital (WDC)" },
@@ -16,9 +16,13 @@ const NAME_OVERRIDES = {
   "BINANCE:BTCUSDT": "Bitcoin (BTC)",
 };
 
+const DEFAULT_TILE_ORDER = ["stocks", "time", "news", "calendar"];
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const trackedSymbols = loadSavedSymbols();
 const previousPrices = new Map();
+const quoteHistory = new Map();
+const investments = loadInvestments();
 
 const quotesBody = document.getElementById("quotes-body");
 const quoteUpdatedEl = document.getElementById("quote-updated");
@@ -41,11 +45,9 @@ const toggleTrendPanelBtn = document.getElementById("toggle-trend-panel");
 const closeTrendPanelBtn = document.getElementById("close-trend-panel");
 const trendPanel = document.getElementById("trend-panel");
 const trendSymbolSelect = document.getElementById("trend-symbol");
-const trendStartBtn = document.getElementById("trend-start-btn");
-const trendStopBtn = document.getElementById("trend-stop-btn");
-const trendClearBtn = document.getElementById("trend-clear-btn");
 const trendGoogleLink = document.getElementById("trend-google-link");
 const trendStatusEl = document.getElementById("trend-status");
+const trendLastUpdateEl = document.getElementById("trend-last-update");
 const trendCanvas = document.getElementById("trend-canvas");
 const trendCtx = trendCanvas ? trendCanvas.getContext("2d") : null;
 
@@ -53,9 +55,6 @@ const clockEtEl = document.getElementById("clock-et");
 const dateEtEl = document.getElementById("date-et");
 const clockNztEl = document.getElementById("clock-nzt");
 const dateNztEl = document.getElementById("date-nzt");
-
-let trendTimer = null;
-let trendPoints = [];
 
 function loadSavedSymbols() {
   try {
@@ -71,6 +70,20 @@ function loadSavedSymbols() {
 
 function saveSymbols() {
   localStorage.setItem(STORAGE_KEY_SYMBOLS, JSON.stringify(trackedSymbols));
+}
+
+function loadInvestments() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_INVESTMENTS);
+    const parsed = JSON.parse(raw || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveInvestments() {
+  localStorage.setItem(STORAGE_KEY_INVESTMENTS, JSON.stringify(investments));
 }
 
 function formatCurrency(value) {
@@ -101,6 +114,45 @@ function plainTicker(symbol) {
   return symbol.replace("^", "");
 }
 
+function normalizeSymbol(input) {
+  return input.trim().toUpperCase();
+}
+
+function getDisplayName(symbol) {
+  return NAME_OVERRIDES[symbol] || `${symbol} (${symbol})`;
+}
+
+function updateHistory(symbol, price) {
+  const existing = quoteHistory.get(symbol) || [];
+  const point = { time: Date.now(), price };
+  const updated = [...existing, point].slice(-180);
+  quoteHistory.set(symbol, updated);
+}
+
+function getInvestment(symbol) {
+  const inv = investments[symbol];
+  if (!inv) return { buyPrice: "", quantity: "" };
+  return { buyPrice: String(inv.buyPrice ?? ""), quantity: String(inv.quantity ?? "") };
+}
+
+function calculatePL(symbol, current) {
+  const inv = investments[symbol];
+  if (!inv || typeof inv.buyPrice !== "number" || typeof inv.quantity !== "number") {
+    return { text: "Set buy", className: "pl-neutral" };
+  }
+
+  const diffPerUnit = current - inv.buyPrice;
+  const total = diffPerUnit * inv.quantity;
+  const pct = inv.buyPrice === 0 ? 0 : (diffPerUnit / inv.buyPrice) * 100;
+  const className = total > 0 ? "pl-positive" : total < 0 ? "pl-negative" : "pl-neutral";
+  const sign = total > 0 ? "+" : "";
+
+  return {
+    text: `${sign}${formatCurrency(total)} (${sign}${pct.toFixed(2)}%)`,
+    className,
+  };
+}
+
 async function fetchQuote(symbolObj) {
   const response = await fetch(quoteUrl(symbolObj.symbol));
   if (!response.ok) throw new Error(`Failed to fetch ${symbolObj.symbol}: ${response.status}`);
@@ -112,6 +164,7 @@ async function fetchQuote(symbolObj) {
 
   const previousPrice = previousPrices.get(symbolObj.symbol);
   previousPrices.set(symbolObj.symbol, data.c);
+  updateHistory(symbolObj.symbol, data.c);
 
   return {
     ...symbolObj,
@@ -141,7 +194,11 @@ function removeSymbol(symbol) {
 
   trackedSymbols.splice(index, 1);
   previousPrices.delete(symbol);
+  quoteHistory.delete(symbol);
+  delete investments[symbol];
+
   saveSymbols();
+  saveInvestments();
   refreshTrendSymbols();
   loadQuotes();
   loadNewsForTrackedSymbols();
@@ -154,6 +211,8 @@ function renderQuotes(rows) {
     const tr = document.createElement("tr");
     const changeClass = row.change > 0 ? "positive" : row.change < 0 ? "negative" : "";
     const trend = trendInfo(row);
+    const inv = getInvestment(row.symbol);
+    const pl = calculatePL(row.symbol, row.current);
 
     tr.innerHTML = `
       <td>${row.name} (${row.symbol})</td>
@@ -161,10 +220,14 @@ function renderQuotes(rows) {
       <td class="${changeClass}">${typeof row.change === "number" ? row.change.toFixed(2) : "--"}</td>
       <td class="${changeClass}">${formatPercent(row.percentChange)}</td>
       <td><span class="trend-badge ${trend.className}"><span class="pulse"></span>${trend.icon} ${trend.label}</span></td>
+      <td><input class="invest-input" data-invest-buy="${row.symbol}" type="number" step="0.0001" min="0" placeholder="buy" value="${inv.buyPrice}" /></td>
+      <td><input class="invest-input" data-invest-qty="${row.symbol}" type="number" step="0.0001" min="0" placeholder="qty" value="${inv.quantity}" /></td>
+      <td class="${pl.className}">${pl.text}</td>
       <td>${formatCurrency(row.high)}</td>
       <td>${formatCurrency(row.low)}</td>
       <td>
         <a class="row-action" target="_blank" rel="noreferrer" href="${googleFinanceUrl(row.symbol)}">Finance</a>
+        <button class="row-action secondary" data-save-invest="${row.symbol}">Save Buy</button>
         <button class="row-action remove" data-remove-symbol="${row.symbol}">Remove</button>
       </td>
     `;
@@ -175,6 +238,25 @@ function renderQuotes(rows) {
   quotesBody.querySelectorAll("button[data-remove-symbol]").forEach((button) => {
     button.addEventListener("click", () => removeSymbol(button.dataset.removeSymbol));
   });
+
+  quotesBody.querySelectorAll("button[data-save-invest]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const symbol = button.dataset.saveInvest;
+      const buyInput = quotesBody.querySelector(`input[data-invest-buy="${symbol}"]`);
+      const qtyInput = quotesBody.querySelector(`input[data-invest-qty="${symbol}"]`);
+      const buyPrice = Number(buyInput?.value);
+      const quantity = Number(qtyInput?.value);
+
+      if (!Number.isFinite(buyPrice) || buyPrice <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+        quoteUpdatedEl.textContent = `Invalid buy/quantity for ${symbol}.`;
+        return;
+      }
+
+      investments[symbol] = { buyPrice, quantity };
+      saveInvestments();
+      loadQuotes();
+    });
+  });
 }
 
 async function loadQuotes() {
@@ -182,17 +264,11 @@ async function loadQuotes() {
     const rows = await Promise.all(trackedSymbols.map(fetchQuote));
     renderQuotes(rows);
     quoteUpdatedEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    drawTrendChart();
+    updateTrendLastStatus();
   } catch (error) {
     quoteUpdatedEl.textContent = `Quote update failed: ${error.message}`;
   }
-}
-
-function normalizeSymbol(input) {
-  return input.trim().toUpperCase();
-}
-
-function getDisplayName(symbol) {
-  return NAME_OVERRIDES[symbol] || `${symbol} (${symbol})`;
 }
 
 async function addSymbol() {
@@ -363,10 +439,7 @@ function renderTradingDays() {
 
   days.forEach((day, i) => {
     const li = document.createElement("li");
-    const friendly = day.toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/New_York",
-    });
-    li.textContent = `${i + 1}. ${friendly}`;
+    li.textContent = `${i + 1}. ${day.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/New_York" })}`;
     tradingDaysList.appendChild(li);
   });
 }
@@ -404,17 +477,7 @@ function renderHolidayCalendar() {
 
     const cell = document.createElement("div");
     cell.className = `calendar-cell${holidayName ? " holiday" : ""}${isWeekend ? " weekend" : ""}`;
-
-    const num = document.createElement("div");
-    num.className = "day-number";
-    num.textContent = String(day);
-
-    const label = document.createElement("div");
-    label.className = `day-label${holidayName ? " holiday" : ""}`;
-    label.textContent = holidayName || (isWeekend ? "Weekend" : "Trading");
-
-    cell.appendChild(num);
-    cell.appendChild(label);
+    cell.innerHTML = `<div class="day-number">${day}</div><div class="day-label${holidayName ? " holiday" : ""}">${holidayName || (isWeekend ? "Weekend" : "Trading")}</div>`;
     calendarGrid.appendChild(cell);
   }
 
@@ -427,9 +490,7 @@ function renderHolidayCalendar() {
 
   monthHolidays.forEach((holiday) => {
     const li = document.createElement("li");
-    const humanDate = holiday.date.toLocaleDateString("en-US", {
-      weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York",
-    });
+    const humanDate = holiday.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
     li.textContent = `${holiday.name}: ${humanDate}`;
     holidayList.appendChild(li);
   });
@@ -531,32 +592,27 @@ async function loadNewsForTrackedSymbols() {
 
   allNews.sort((a, b) => (b.time?.getTime() || 0) - (a.time?.getTime() || 0));
   newsList.innerHTML = "";
-
   allNews.slice(0, 8).forEach((entry) => {
     const li = document.createElement("li");
     const dateText = entry.time ? entry.time.toLocaleString() : "Unknown time";
-    li.innerHTML = `
-      <div class="news-meta">${entry.symbol} • ${entry.source} • ${dateText}</div>
-      <a href="${entry.url}" target="_blank" rel="noreferrer">${entry.headline}</a>
-    `;
+    li.innerHTML = `<div class="news-meta">${entry.symbol} • ${entry.source} • ${dateText}</div><a href="${entry.url}" target="_blank" rel="noreferrer">${entry.headline}</a>`;
     newsList.appendChild(li);
   });
 }
 
 function saveTileOrder() {
-  if (!dashboardGrid) return;
   const order = [...dashboardGrid.querySelectorAll(".dashboard-tile")].map((tile) => tile.dataset.tileId);
   localStorage.setItem(STORAGE_KEY_TILE_ORDER, JSON.stringify(order));
 }
 
 function applySavedTileOrder() {
-  if (!dashboardGrid) return;
   let order = [];
   try {
     order = JSON.parse(localStorage.getItem(STORAGE_KEY_TILE_ORDER) || "[]");
   } catch {
     order = [];
   }
+
   if (!Array.isArray(order) || order.length === 0) return;
 
   const tileMap = new Map([...dashboardGrid.querySelectorAll(".dashboard-tile")].map((tile) => [tile.dataset.tileId, tile]));
@@ -568,21 +624,35 @@ function applySavedTileOrder() {
 
 function resetTileOrder() {
   localStorage.removeItem(STORAGE_KEY_TILE_ORDER);
-  const defaultOrder = ["stocks", "time", "news", "calendar"];
   const tileMap = new Map([...dashboardGrid.querySelectorAll(".dashboard-tile")].map((tile) => [tile.dataset.tileId, tile]));
-  defaultOrder.forEach((tileId) => {
+  DEFAULT_TILE_ORDER.forEach((tileId) => {
     const tile = tileMap.get(tileId);
     if (tile) dashboardGrid.appendChild(tile);
   });
 }
 
+function tileAfterElement(container, y) {
+  const draggableElements = [...container.querySelectorAll(".dashboard-tile:not(.dragging)")];
+
+  return draggableElements.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    },
+    { offset: Number.NEGATIVE_INFINITY, element: null },
+  ).element;
+}
+
 function wireTileDragAndDrop() {
-  if (!dashboardGrid) return;
-  let draggedTile = null;
+  let dragging = null;
 
   dashboardGrid.querySelectorAll(".dashboard-tile").forEach((tile) => {
     tile.addEventListener("dragstart", (event) => {
-      draggedTile = tile;
+      dragging = tile;
       tile.classList.add("dragging");
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "move";
@@ -593,122 +663,28 @@ function wireTileDragAndDrop() {
     tile.addEventListener("dragend", () => {
       tile.classList.remove("dragging");
       dashboardGrid.querySelectorAll(".dashboard-tile").forEach((el) => el.classList.remove("drop-target"));
-      draggedTile = null;
-      saveTileOrder();
-    });
-
-    tile.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-    });
-
-    tile.addEventListener("dragenter", () => {
-      if (tile !== draggedTile) tile.classList.add("drop-target");
-    });
-
-    tile.addEventListener("dragleave", () => {
-      tile.classList.remove("drop-target");
-    });
-
-    tile.addEventListener("drop", (event) => {
-      event.preventDefault();
-      tile.classList.remove("drop-target");
-      if (!draggedTile || draggedTile === tile) return;
-
-      const rect = tile.getBoundingClientRect();
-      const insertAfter = event.clientY > rect.top + rect.height / 2;
-      if (insertAfter) tile.after(draggedTile);
-      else tile.before(draggedTile);
-
+      dragging = null;
       saveTileOrder();
     });
   });
-}
 
-function drawTrendChart() {
-  if (!trendCtx || !trendCanvas) return;
+  dashboardGrid.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    if (!dragging) return;
 
-  trendCtx.clearRect(0, 0, trendCanvas.width, trendCanvas.height);
-  trendCtx.fillStyle = "#0b1323";
-  trendCtx.fillRect(0, 0, trendCanvas.width, trendCanvas.height);
+    const afterElement = tileAfterElement(dashboardGrid, event.clientY);
+    dashboardGrid.querySelectorAll(".dashboard-tile").forEach((el) => el.classList.remove("drop-target"));
 
-  if (trendPoints.length < 2) {
-    trendCtx.fillStyle = "#9fb0cf";
-    trendCtx.font = "16px sans-serif";
-    trendCtx.fillText("Collecting data points...", 20, 35);
-    return;
-  }
-
-  const values = trendPoints.map((p) => p.price);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const pad = (max - min || 1) * 0.15;
-  const yMin = min - pad;
-  const yMax = max + pad;
-
-  trendCtx.strokeStyle = "#34d399";
-  trendCtx.lineWidth = 2;
-  trendCtx.beginPath();
-
-  trendPoints.forEach((point, i) => {
-    const x = (i / (trendPoints.length - 1)) * (trendCanvas.width - 60) + 30;
-    const yRatio = (point.price - yMin) / (yMax - yMin);
-    const y = trendCanvas.height - 30 - yRatio * (trendCanvas.height - 60);
-    if (i === 0) trendCtx.moveTo(x, y);
-    else trendCtx.lineTo(x, y);
+    if (!afterElement) {
+      dashboardGrid.appendChild(dragging);
+    } else {
+      afterElement.classList.add("drop-target");
+      dashboardGrid.insertBefore(dragging, afterElement);
+    }
   });
-
-  trendCtx.stroke();
-
-  trendCtx.fillStyle = "#9fb0cf";
-  trendCtx.font = "12px sans-serif";
-  trendCtx.fillText(`Min: ${min.toFixed(2)}  Max: ${max.toFixed(2)}  Last: ${values[values.length - 1].toFixed(2)}`, 20, trendCanvas.height - 10);
-}
-
-async function pullTrendQuote() {
-  const symbol = trendSymbolSelect.value;
-  if (!symbol) return;
-
-  try {
-    const response = await fetch(quoteUrl(symbol));
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    if (typeof data.c !== "number" || Number.isNaN(data.c)) throw new Error("No quote price");
-
-    trendPoints.push({ time: Date.now(), price: data.c });
-    if (trendPoints.length > 60) trendPoints = trendPoints.slice(-60);
-    trendStatusEl.textContent = `Live: ${symbol} @ ${data.c.toFixed(2)} (${new Date().toLocaleTimeString()})`;
-    drawTrendChart();
-  } catch (error) {
-    trendStatusEl.textContent = `Live draw failed for ${symbol}: ${error.message}`;
-  }
-}
-
-function startTrendLive() {
-  if (trendTimer) clearInterval(trendTimer);
-  pullTrendQuote();
-  trendTimer = setInterval(pullTrendQuote, 5000);
-}
-
-function stopTrendLive() {
-  if (trendTimer) clearInterval(trendTimer);
-  trendTimer = null;
-  trendStatusEl.textContent = "Live draw stopped.";
-}
-
-function clearTrendPoints() {
-  trendPoints = [];
-  drawTrendChart();
-  trendStatusEl.textContent = "Chart cleared.";
-}
-
-function updateTrendGoogleLink() {
-  if (!trendSymbolSelect.value) return;
-  trendGoogleLink.href = googleFinanceUrl(trendSymbolSelect.value);
 }
 
 function refreshTrendSymbols() {
-  if (!trendSymbolSelect) return;
   const current = trendSymbolSelect.value;
   trendSymbolSelect.innerHTML = "";
 
@@ -720,16 +696,75 @@ function refreshTrendSymbols() {
   });
 
   if (trackedSymbols.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No symbols tracked";
-    trendSymbolSelect.appendChild(option);
-    stopTrendLive();
+    trendSymbolSelect.innerHTML = '<option value="">No symbols tracked</option>';
   } else if (trackedSymbols.some((item) => item.symbol === current)) {
     trendSymbolSelect.value = current;
   }
 
   updateTrendGoogleLink();
+  drawTrendChart();
+  updateTrendLastStatus();
+}
+
+function updateTrendGoogleLink() {
+  if (!trendSymbolSelect.value) return;
+  trendGoogleLink.href = googleFinanceUrl(trendSymbolSelect.value);
+}
+
+function updateTrendLastStatus() {
+  const symbol = trendSymbolSelect.value;
+  const points = quoteHistory.get(symbol) || [];
+  if (points.length === 0) {
+    trendLastUpdateEl.textContent = "No points yet.";
+    return;
+  }
+  const last = points[points.length - 1];
+  trendLastUpdateEl.textContent = `Last update: ${new Date(last.time).toLocaleTimeString()} (${points.length} points)`;
+}
+
+function drawTrendChart() {
+  if (!trendCtx || !trendCanvas) return;
+
+  trendCtx.clearRect(0, 0, trendCanvas.width, trendCanvas.height);
+  trendCtx.fillStyle = "#0b1323";
+  trendCtx.fillRect(0, 0, trendCanvas.width, trendCanvas.height);
+
+  const symbol = trendSymbolSelect.value;
+  const points = quoteHistory.get(symbol) || [];
+  if (points.length < 2) {
+    trendCtx.fillStyle = "#9fb0cf";
+    trendCtx.font = "16px sans-serif";
+    trendCtx.fillText("Trend builds from live table quotes...", 20, 35);
+    trendStatusEl.textContent = "Trend uses existing quote data stream (no separate polling).";
+    return;
+  }
+
+  const values = points.map((p) => p.price);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = (max - min || 1) * 0.15;
+  const yMin = min - pad;
+  const yMax = max + pad;
+
+  trendCtx.strokeStyle = "#34d399";
+  trendCtx.lineWidth = 2;
+  trendCtx.beginPath();
+
+  points.forEach((point, i) => {
+    const x = (i / (points.length - 1)) * (trendCanvas.width - 60) + 30;
+    const yRatio = (point.price - yMin) / (yMax - yMin);
+    const y = trendCanvas.height - 30 - yRatio * (trendCanvas.height - 60);
+    if (i === 0) trendCtx.moveTo(x, y);
+    else trendCtx.lineTo(x, y);
+  });
+
+  trendCtx.stroke();
+
+  const last = values[values.length - 1];
+  trendCtx.fillStyle = "#9fb0cf";
+  trendCtx.font = "12px sans-serif";
+  trendCtx.fillText(`Min: ${min.toFixed(2)}  Max: ${max.toFixed(2)}  Last: ${last.toFixed(2)}`, 20, trendCanvas.height - 10);
+  trendStatusEl.textContent = `${symbol} trend from existing quote history.`;
 }
 
 function openTrendPanel() {
@@ -766,13 +801,12 @@ function wireEvents() {
     if (trendPanel.classList.contains("hidden")) openTrendPanel();
     else closeTrendPanel();
   });
+
   closeTrendPanelBtn.addEventListener("click", closeTrendPanel);
-  trendStartBtn.addEventListener("click", startTrendLive);
-  trendStopBtn.addEventListener("click", stopTrendLive);
-  trendClearBtn.addEventListener("click", clearTrendPoints);
   trendSymbolSelect.addEventListener("change", () => {
-    clearTrendPoints();
     updateTrendGoogleLink();
+    drawTrendChart();
+    updateTrendLastStatus();
   });
 }
 
@@ -781,7 +815,6 @@ function init() {
   wireTileDragAndDrop();
   wireEvents();
   refreshTrendSymbols();
-  drawTrendChart();
 
   loadQuotes();
   loadNewsForTrackedSymbols();
@@ -792,7 +825,7 @@ function init() {
 
   setInterval(updateClocks, 1000);
   setInterval(updateMarketStatus, 1000);
-  setInterval(loadQuotes, 30000);
+  setInterval(loadQuotes, 10000);
   setInterval(loadNewsForTrackedSymbols, 120000);
 }
 
