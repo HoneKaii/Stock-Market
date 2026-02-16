@@ -32,6 +32,10 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
    - Dedicated page with a live updating trend chart for selected symbols.
    - Uses symbols saved from the dashboard.
    - Includes start/stop/clear controls and Google Finance shortcut.
+6. **Snap Layout Tile Reordering**
+   - Rearrange primary dashboard tiles by dragging.
+   - Tiles snap into an even grid with consistent spacing.
+   - Layout order is saved in localStorage.
 
 ## API configuration
 
@@ -67,6 +71,7 @@ Validation checks:
 - Live Trend column changes between Rising/Falling/Flat based on quote movement.
 - Latest News section updates based on tracked symbols.
 - Live Draw Trends page draws live trend line over time.
+- Dashboard tiles can be dragged, snapped into grid positions, and reset to default layout.
 - Session badge changes between OPEN/CLOSED correctly.
 - Countdown timer updates each second.
 - Calendar shows the current month with holiday names on holiday days.

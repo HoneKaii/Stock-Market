@@ -19,10 +19,20 @@
       </p>
     </header>
 
-    <main class="dashboard-grid">
-      <section class="card" aria-labelledby="stocks-title">
+    <section class="layout-toolbar" aria-label="Layout controls">
+      <p class="subtle">Drag tiles by the ⠿ handle to rearrange. Tiles snap into the grid.</p>
+      <button id="reset-layout-btn" type="button" class="secondary">Reset Layout</button>
+    </section>
+
+    <main class="dashboard-grid" id="dashboard-grid">
+      <section
+        class="card dashboard-tile tile-large"
+        data-tile-id="stocks"
+        draggable="true"
+        aria-labelledby="stocks-title"
+      >
         <div class="card-heading">
-          <h2 id="stocks-title">Live Stock & Crypto Table</h2>
+          <h2 id="stocks-title">Live Stock & Crypto Table <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span id="quote-updated" class="subtle">Waiting for first update…</span>
         </div>
 
@@ -57,9 +67,14 @@
         </div>
       </section>
 
-      <section class="card" aria-labelledby="time-title">
+      <section
+        class="card dashboard-tile tile-small"
+        data-tile-id="time"
+        draggable="true"
+        aria-labelledby="time-title"
+      >
         <div class="card-heading">
-          <h2 id="time-title">Dual Clocks & Market Session</h2>
+          <h2 id="time-title">Dual Clocks & Market Session <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span class="subtle">ET regular session: 9:30 AM–4:00 PM</span>
         </div>
 
@@ -85,9 +100,14 @@
         </div>
       </section>
 
-      <section class="card" aria-labelledby="news-title">
+      <section
+        class="card dashboard-tile tile-small"
+        data-tile-id="news"
+        draggable="true"
+        aria-labelledby="news-title"
+      >
         <div class="card-heading">
-          <h2 id="news-title">Latest News (by tracked symbols)</h2>
+          <h2 id="news-title">Latest News (by tracked symbols) <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span class="subtle">Updates when symbols are added/removed.</span>
         </div>
         <ul id="news-list" class="news-list">
@@ -95,9 +115,14 @@
         </ul>
       </section>
 
-      <section class="card" aria-labelledby="calendar-title">
+      <section
+        class="card dashboard-tile tile-large"
+        data-tile-id="calendar"
+        draggable="true"
+        aria-labelledby="calendar-title"
+      >
         <div class="card-heading">
-          <h2 id="calendar-title">Market Calendar</h2>
+          <h2 id="calendar-title">Market Calendar <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span class="subtle">Built-in NYSE holiday calendar (no external calendar API).</span>
         </div>
 

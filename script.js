@@ -4,6 +4,7 @@ const FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote";
 const FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news";
 
 const STORAGE_KEY_SYMBOLS = "market-dashboard-symbols";
+const STORAGE_KEY_TILE_ORDER = "market-dashboard-tile-order";
 const INITIAL_SYMBOLS = [
   { symbol: "WDC", name: "Western Digital (WDC)" },
   { symbol: "BINANCE:BTCUSDT", name: "Bitcoin (BTC)" },
@@ -32,6 +33,8 @@ const symbolInput = document.getElementById("symbol-input");
 const addSymbolBtn = document.getElementById("add-symbol-btn");
 const refreshBtn = document.getElementById("refresh-btn");
 const googleFinanceBtn = document.getElementById("google-finance-btn");
+const resetLayoutBtn = document.getElementById("reset-layout-btn");
+const dashboardGrid = document.getElementById("dashboard-grid");
 
 const clockEtEl = document.getElementById("clock-et");
 const dateEtEl = document.getElementById("date-et");
@@ -547,6 +550,93 @@ async function loadNewsForTrackedSymbols() {
   });
 }
 
+
+function saveTileOrder() {
+  if (!dashboardGrid) return;
+  const order = [...dashboardGrid.querySelectorAll(".dashboard-tile")].map((tile) => tile.dataset.tileId);
+  localStorage.setItem(STORAGE_KEY_TILE_ORDER, JSON.stringify(order));
+}
+
+function applySavedTileOrder() {
+  if (!dashboardGrid) return;
+
+  let order = [];
+  try {
+    order = JSON.parse(localStorage.getItem(STORAGE_KEY_TILE_ORDER) || "[]");
+  } catch {
+    order = [];
+  }
+
+  if (!Array.isArray(order) || order.length === 0) return;
+
+  const tileMap = new Map(
+    [...dashboardGrid.querySelectorAll(".dashboard-tile")].map((tile) => [tile.dataset.tileId, tile]),
+  );
+
+  order.forEach((tileId) => {
+    const tile = tileMap.get(tileId);
+    if (tile) dashboardGrid.appendChild(tile);
+  });
+}
+
+function resetTileOrder() {
+  localStorage.removeItem(STORAGE_KEY_TILE_ORDER);
+  const defaultOrder = ["stocks", "time", "news", "calendar"];
+  const tileMap = new Map(
+    [...dashboardGrid.querySelectorAll(".dashboard-tile")].map((tile) => [tile.dataset.tileId, tile]),
+  );
+  defaultOrder.forEach((tileId) => {
+    const tile = tileMap.get(tileId);
+    if (tile) dashboardGrid.appendChild(tile);
+  });
+}
+
+function wireTileDragAndDrop() {
+  if (!dashboardGrid) return;
+  let draggedTile = null;
+
+  dashboardGrid.querySelectorAll(".dashboard-tile").forEach((tile) => {
+    tile.addEventListener("dragstart", () => {
+      draggedTile = tile;
+      tile.classList.add("dragging");
+    });
+
+    tile.addEventListener("dragend", () => {
+      tile.classList.remove("dragging");
+      dashboardGrid.querySelectorAll(".dashboard-tile").forEach((el) => el.classList.remove("drop-target"));
+      draggedTile = null;
+      saveTileOrder();
+    });
+
+    tile.addEventListener("dragover", (event) => {
+      event.preventDefault();
+    });
+
+    tile.addEventListener("dragenter", () => {
+      if (tile !== draggedTile) tile.classList.add("drop-target");
+    });
+
+    tile.addEventListener("dragleave", () => {
+      tile.classList.remove("drop-target");
+    });
+
+    tile.addEventListener("drop", (event) => {
+      event.preventDefault();
+      tile.classList.remove("drop-target");
+      if (!draggedTile || draggedTile === tile) return;
+
+      const rect = tile.getBoundingClientRect();
+      const insertAfter = event.clientY > rect.top + rect.height / 2;
+      if (insertAfter) {
+        tile.after(draggedTile);
+      } else {
+        tile.before(draggedTile);
+      }
+      saveTileOrder();
+    });
+  });
+}
+
 function wireEvents() {
   addSymbolBtn.addEventListener("click", addSymbol);
   refreshBtn.addEventListener("click", () => {
@@ -554,6 +644,10 @@ function wireEvents() {
     loadNewsForTrackedSymbols();
   });
   googleFinanceBtn.addEventListener("click", openGoogleFinanceFromInput);
+  resetLayoutBtn.addEventListener("click", () => {
+    resetTileOrder();
+    quoteUpdatedEl.textContent = "Layout reset to default.";
+  });
 
   symbolInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -564,6 +658,8 @@ function wireEvents() {
 }
 
 function init() {
+  applySavedTileOrder();
+  wireTileDragAndDrop();
   wireEvents();
   loadQuotes();
   loadNewsForTrackedSymbols();
