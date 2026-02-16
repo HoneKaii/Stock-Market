@@ -1,7 +1,9 @@
 // Finnhub key provided for this task. Replace for your own deployment.
 const FINNHUB_API_KEY = "d695jlhr01qs7u9krk20d695jlhr01qs7u9krk2g";
-const FINNHUB_BASE_URL = "https://finnhub.io/api/v1/quote";
+const FINNHUB_QUOTE_URL = "https://finnhub.io/api/v1/quote";
+const FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news";
 
+const STORAGE_KEY_SYMBOLS = "market-dashboard-symbols";
 const INITIAL_SYMBOLS = [
   { symbol: "WDC", name: "Western Digital (WDC)" },
   { symbol: "BINANCE:BTCUSDT", name: "Bitcoin (BTC)" },
@@ -13,7 +15,7 @@ const NAME_OVERRIDES = {
 };
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const trackedSymbols = [...INITIAL_SYMBOLS];
+const trackedSymbols = loadSavedSymbols();
 const previousPrices = new Map();
 
 const quotesBody = document.getElementById("quotes-body");
@@ -24,15 +26,33 @@ const tradingDaysList = document.getElementById("trading-days-list");
 const holidayList = document.getElementById("holiday-list");
 const calendarGrid = document.getElementById("calendar-grid");
 const calendarMonthTitle = document.getElementById("calendar-month-title");
+const newsList = document.getElementById("news-list");
 
 const symbolInput = document.getElementById("symbol-input");
 const addSymbolBtn = document.getElementById("add-symbol-btn");
 const refreshBtn = document.getElementById("refresh-btn");
+const googleFinanceBtn = document.getElementById("google-finance-btn");
 
 const clockEtEl = document.getElementById("clock-et");
 const dateEtEl = document.getElementById("date-et");
 const clockNztEl = document.getElementById("clock-nzt");
 const dateNztEl = document.getElementById("date-nzt");
+
+function loadSavedSymbols() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SYMBOLS);
+    if (!raw) return [...INITIAL_SYMBOLS];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...INITIAL_SYMBOLS];
+    return parsed.filter((item) => item && item.symbol && item.name);
+  } catch {
+    return [...INITIAL_SYMBOLS];
+  }
+}
+
+function saveSymbols() {
+  localStorage.setItem(STORAGE_KEY_SYMBOLS, JSON.stringify(trackedSymbols));
+}
 
 function formatCurrency(value) {
   if (typeof value !== "number" || Number.isNaN(value)) return "--";
@@ -50,17 +70,18 @@ function formatPercent(value) {
 }
 
 function quoteUrl(symbol) {
-  return `${FINNHUB_BASE_URL}?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_API_KEY}`;
+  return `${FINNHUB_QUOTE_URL}?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_API_KEY}`;
+}
+
+function googleFinanceUrl(symbol) {
+  return `https://www.google.com/finance/quote/${encodeURIComponent(symbol)}`;
 }
 
 async function fetchQuote(symbolObj) {
   const response = await fetch(quoteUrl(symbolObj.symbol));
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${symbolObj.symbol}: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Failed to fetch ${symbolObj.symbol}: ${response.status}`);
 
   const data = await response.json();
-
   if ([data.c, data.h, data.l].some((n) => typeof n !== "number" || Number.isNaN(n))) {
     throw new Error(`Invalid symbol or no quote data for ${symbolObj.symbol}`);
   }
@@ -81,18 +102,24 @@ async function fetchQuote(symbolObj) {
 
 function trendInfo(row) {
   if (typeof row.previousPrice === "number") {
-    if (row.current > row.previousPrice) {
-      return { className: "up", label: "Rising", icon: "▲" };
-    }
-    if (row.current < row.previousPrice) {
-      return { className: "down", label: "Falling", icon: "▼" };
-    }
+    if (row.current > row.previousPrice) return { className: "up", label: "Rising", icon: "▲" };
+    if (row.current < row.previousPrice) return { className: "down", label: "Falling", icon: "▼" };
     return { className: "flat", label: "Flat", icon: "•" };
   }
 
   if (row.change > 0) return { className: "up", label: "Up", icon: "▲" };
   if (row.change < 0) return { className: "down", label: "Down", icon: "▼" };
   return { className: "flat", label: "Flat", icon: "•" };
+}
+
+function removeSymbol(symbol) {
+  const index = trackedSymbols.findIndex((item) => item.symbol === symbol);
+  if (index === -1) return;
+  trackedSymbols.splice(index, 1);
+  previousPrices.delete(symbol);
+  saveSymbols();
+  loadQuotes();
+  loadNewsForTrackedSymbols();
 }
 
 function renderQuotes(rows) {
@@ -108,16 +135,19 @@ function renderQuotes(rows) {
       <td>${formatCurrency(row.current)}</td>
       <td class="${changeClass}">${typeof row.change === "number" ? row.change.toFixed(2) : "--"}</td>
       <td class="${changeClass}">${formatPercent(row.percentChange)}</td>
-      <td>
-        <span class="trend-badge ${trend.className}">
-          <span class="pulse"></span>${trend.icon} ${trend.label}
-        </span>
-      </td>
+      <td><span class="trend-badge ${trend.className}"><span class="pulse"></span>${trend.icon} ${trend.label}</span></td>
       <td>${formatCurrency(row.high)}</td>
       <td>${formatCurrency(row.low)}</td>
+      <td>
+        <a class="row-action" target="_blank" rel="noreferrer" href="${googleFinanceUrl(row.symbol)}">Finance</a>
+        <button class="row-action remove" data-remove-symbol="${row.symbol}">Remove</button>
+      </td>
     `;
-
     quotesBody.appendChild(tr);
+  });
+
+  quotesBody.querySelectorAll("button[data-remove-symbol]").forEach((button) => {
+    button.addEventListener("click", () => removeSymbol(button.dataset.removeSymbol));
   });
 }
 
@@ -139,9 +169,13 @@ function getDisplayName(symbol) {
   return NAME_OVERRIDES[symbol] || `${symbol} (${symbol})`;
 }
 
+function plainTicker(symbol) {
+  if (symbol.includes(":")) return symbol.split(":")[1].replace("USDT", "");
+  return symbol.replace("^", "");
+}
+
 async function addSymbol() {
-  const raw = symbolInput.value;
-  const symbol = normalizeSymbol(raw);
+  const symbol = normalizeSymbol(symbolInput.value);
   if (!symbol) return;
 
   if (trackedSymbols.some((item) => item.symbol === symbol)) {
@@ -155,11 +189,22 @@ async function addSymbol() {
   try {
     await fetchQuote(candidate);
     trackedSymbols.push(candidate);
+    saveSymbols();
     symbolInput.value = "";
     await loadQuotes();
+    await loadNewsForTrackedSymbols();
   } catch (error) {
     quoteUpdatedEl.textContent = `Could not add ${symbol}: ${error.message}`;
   }
+}
+
+function openGoogleFinanceFromInput() {
+  const symbol = normalizeSymbol(symbolInput.value);
+  if (!symbol) {
+    quoteUpdatedEl.textContent = "Enter a symbol first to open Google Finance.";
+    return;
+  }
+  window.open(googleFinanceUrl(symbol), "_blank", "noopener,noreferrer");
 }
 
 function getTimeParts(timeZone) {
@@ -263,10 +308,7 @@ function getNyseHolidays(year) {
     { name: "Christmas Day", date: observeHoliday(new Date(Date.UTC(year, 11, 25))) },
   ]
     .filter((holiday) => holiday.date)
-    .map((holiday) => ({
-      ...holiday,
-      key: holiday.date.toISOString().slice(0, 10),
-    }));
+    .map((holiday) => ({ ...holiday, key: holiday.date.toISOString().slice(0, 10) }));
 
   const byDate = new Map(holidays.map((holiday) => [holiday.key, holiday.name]));
   return { holidays, byDate };
@@ -292,12 +334,9 @@ function nextTradingDays(startDate, count = 5) {
   const cursor = new Date(startDate);
 
   while (result.length < count) {
-    if (isTradingDay(cursor)) {
-      result.push(new Date(cursor));
-    }
+    if (isTradingDay(cursor)) result.push(new Date(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
-
   return result;
 }
 
@@ -373,15 +412,10 @@ function renderHolidayCalendar() {
   }
 
   holidayList.innerHTML = "";
-  const monthHolidays = holidays.filter((holiday) => {
-    const holidayDate = new Date(holiday.date);
-    return holidayDate.getUTCMonth() === month;
-  });
+  const monthHolidays = holidays.filter((holiday) => new Date(holiday.date).getUTCMonth() === month);
 
   if (monthHolidays.length === 0) {
-    const li = document.createElement("li");
-    li.textContent = "No NYSE market holidays this month.";
-    holidayList.appendChild(li);
+    holidayList.innerHTML = "<li>No NYSE market holidays this month.</li>";
     return;
   }
 
@@ -401,15 +435,7 @@ function renderHolidayCalendar() {
 
 function buildEtDateForToday(hour, minute, second = 0) {
   const nowEt = toEtDate();
-  return new Date(
-    nowEt.getFullYear(),
-    nowEt.getMonth(),
-    nowEt.getDate(),
-    hour,
-    minute,
-    second,
-    0,
-  );
+  return new Date(nowEt.getFullYear(), nowEt.getMonth(), nowEt.getDate(), hour, minute, second, 0);
 }
 
 function formatDuration(ms) {
@@ -458,9 +484,77 @@ function updateMarketStatus() {
   nextEventEl.textContent = `Next market open in ${formatDuration(nextOpen - nowEt)} (${nextOpen.toLocaleString("en-US", { timeZone: "America/New_York" })} ET)`;
 }
 
+function newsDateRange() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 7);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
+
+async function fetchNewsForSymbol(symbol) {
+  const simpleSymbol = plainTicker(symbol);
+  if (!/^[A-Z.]+$/.test(simpleSymbol)) return [];
+
+  const { from, to } = newsDateRange();
+  const url = `${FINNHUB_COMPANY_NEWS_URL}?symbol=${encodeURIComponent(simpleSymbol)}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return [];
+    const news = await response.json();
+    if (!Array.isArray(news)) return [];
+
+    return news.slice(0, 2).map((item) => ({
+      symbol,
+      headline: item.headline || "Untitled",
+      source: item.source || "Unknown",
+      url: item.url || "#",
+      time: item.datetime ? new Date(item.datetime * 1000) : null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function loadNewsForTrackedSymbols() {
+  newsList.innerHTML = "<li>Loading news...</li>";
+  if (trackedSymbols.length === 0) {
+    newsList.innerHTML = "<li>No symbols tracked. Add a symbol to see related news.</li>";
+    return;
+  }
+
+  const allNews = (await Promise.all(trackedSymbols.map((item) => fetchNewsForSymbol(item.symbol)))).flat();
+
+  if (allNews.length === 0) {
+    newsList.innerHTML = "<li>No symbol-specific news returned right now.</li>";
+    return;
+  }
+
+  allNews.sort((a, b) => (b.time?.getTime() || 0) - (a.time?.getTime() || 0));
+  newsList.innerHTML = "";
+
+  allNews.slice(0, 8).forEach((entry) => {
+    const li = document.createElement("li");
+    const dateText = entry.time ? entry.time.toLocaleString() : "Unknown time";
+    li.innerHTML = `
+      <div class="news-meta">${entry.symbol} • ${entry.source} • ${dateText}</div>
+      <a href="${entry.url}" target="_blank" rel="noreferrer">${entry.headline}</a>
+    `;
+    newsList.appendChild(li);
+  });
+}
+
 function wireEvents() {
   addSymbolBtn.addEventListener("click", addSymbol);
-  refreshBtn.addEventListener("click", loadQuotes);
+  refreshBtn.addEventListener("click", () => {
+    loadQuotes();
+    loadNewsForTrackedSymbols();
+  });
+  googleFinanceBtn.addEventListener("click", openGoogleFinanceFromInput);
+
   symbolInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -472,6 +566,7 @@ function wireEvents() {
 function init() {
   wireEvents();
   loadQuotes();
+  loadNewsForTrackedSymbols();
   updateClocks();
   updateMarketStatus();
   renderTradingDays();
@@ -480,6 +575,7 @@ function init() {
   setInterval(updateClocks, 1000);
   setInterval(updateMarketStatus, 1000);
   setInterval(loadQuotes, 30000);
+  setInterval(loadNewsForTrackedSymbols, 120000);
 }
 
 init();

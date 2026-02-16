@@ -9,23 +9,33 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
      - Western Digital (WDC)
      - Bitcoin (BTC)
    - Add any extra symbol from the UI search box (example: `AAPL`, `TSLA`).
+   - Remove symbols directly from the table.
    - Manual **Refresh Now** button plus automatic refresh (~30s).
+   - **Open in Google Finance** button for the symbol entered in the input.
+   - Per-row **Finance** action for quick symbol lookup.
    - Live quote data from Finnhub.
    - **Live Trend** column (rising/falling/flat) based on real-time price movement.
 2. **Dual Clocks + Market Session Status**
    - ET and NZT clocks.
    - NYSE regular-hours status (9:30 AM–4:00 PM ET).
    - Countdown to next open/close event.
-3. **Market Calendar**
+3. **Latest News (by tracked symbols)**
+   - Pulls symbol-specific company news for currently tracked symbols.
+   - News list updates when symbols are added or removed.
+4. **Market Calendar**
    - Built-in holiday-aware NYSE logic.
    - Current month calendar grid.
    - Holiday labels directly on calendar days.
    - “Holidays This Month” list with holiday name + exact date.
    - Next 5 trading days, no external calendar API required.
+5. **Live Draw Trends Page (`trends.html`)**
+   - Dedicated page with a live updating trend chart for selected symbols.
+   - Uses symbols saved from the dashboard.
+   - Includes start/stop/clear controls and Google Finance shortcut.
 
 ## API configuration
 
-`script.js` includes a Finnhub token for this build:
+`script.js` and `trends.js` include a Finnhub token for this build:
 
 ```js
 const FINNHUB_API_KEY = "d695jlhr01qs7u9krk20d695jlhr01qs7u9krk2g";
@@ -45,13 +55,18 @@ python3 -m http.server 8080
 
 # 3) Open browser
 # http://localhost:8080
+# http://localhost:8080/trends.html
 ```
 
 Validation checks:
 - Quotes update every ~30 seconds.
 - “Refresh Now” updates quotes immediately.
 - New symbol input adds valid symbols to the tracked table.
+- Remove action removes symbol and updates related news.
+- Google Finance button opens symbol page from input.
 - Live Trend column changes between Rising/Falling/Flat based on quote movement.
+- Latest News section updates based on tracked symbols.
+- Live Draw Trends page draws live trend line over time.
 - Session badge changes between OPEN/CLOSED correctly.
 - Countdown timer updates each second.
 - Calendar shows the current month with holiday names on holiday days.

@@ -31,6 +31,8 @@
           <input id="symbol-input" type="text" placeholder="e.g. AAPL, TSLA, MSFT" />
           <button id="add-symbol-btn" type="button">Add</button>
           <button id="refresh-btn" type="button" class="secondary">Refresh Now</button>
+          <button id="google-finance-btn" type="button" class="secondary">Open in Google Finance</button>
+          <a class="button-link" href="trends.html">Open Live Draw Trends Page</a>
         </div>
         <p class="subtle control-hint">
           Defaults include <strong>Western Digital (WDC)</strong> and <strong>Bitcoin (BTC)</strong>.
@@ -47,6 +49,7 @@
                 <th>Live Trend</th>
                 <th>Day High</th>
                 <th>Day Low</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="quotes-body"></tbody>
@@ -80,6 +83,16 @@
           </p>
           <p id="next-event">Calculating next market event...</p>
         </div>
+      </section>
+
+      <section class="card" aria-labelledby="news-title">
+        <div class="card-heading">
+          <h2 id="news-title">Latest News (by tracked symbols)</h2>
+          <span class="subtle">Updates when symbols are added/removed.</span>
+        </div>
+        <ul id="news-list" class="news-list">
+          <li>Loading news...</li>
+        </ul>
       </section>
 
       <section class="card" aria-labelledby="calendar-title">
