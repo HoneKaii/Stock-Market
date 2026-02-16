@@ -25,12 +25,7 @@
     </section>
 
     <main class="dashboard-grid" id="dashboard-grid">
-      <section
-        class="card dashboard-tile tile-large"
-        data-tile-id="stocks"
-        draggable="true"
-        aria-labelledby="stocks-title"
-      >
+      <section class="card dashboard-tile tile-large" data-tile-id="stocks" draggable="true" aria-labelledby="stocks-title">
         <div class="card-heading">
           <h2 id="stocks-title">Live Stock & Crypto Table <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span id="quote-updated" class="subtle">Waiting for first update…</span>
@@ -42,7 +37,6 @@
           <button id="add-symbol-btn" type="button">Add</button>
           <button id="refresh-btn" type="button" class="secondary">Refresh Now</button>
           <button id="google-finance-btn" type="button" class="secondary">Open in Google Finance</button>
-          <a class="button-link" href="trends.html">Open Live Draw Trends Page</a>
         </div>
         <p class="subtle control-hint">
           Defaults include <strong>Western Digital (WDC)</strong> and <strong>Bitcoin (BTC)</strong>.
@@ -67,12 +61,7 @@
         </div>
       </section>
 
-      <section
-        class="card dashboard-tile tile-small"
-        data-tile-id="time"
-        draggable="true"
-        aria-labelledby="time-title"
-      >
+      <section class="card dashboard-tile tile-small" data-tile-id="time" draggable="true" aria-labelledby="time-title">
         <div class="card-heading">
           <h2 id="time-title">Dual Clocks & Market Session <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span class="subtle">ET regular session: 9:30 AM–4:00 PM</span>
@@ -100,12 +89,7 @@
         </div>
       </section>
 
-      <section
-        class="card dashboard-tile tile-small"
-        data-tile-id="news"
-        draggable="true"
-        aria-labelledby="news-title"
-      >
+      <section class="card dashboard-tile tile-small" data-tile-id="news" draggable="true" aria-labelledby="news-title">
         <div class="card-heading">
           <h2 id="news-title">Latest News (by tracked symbols) <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span class="subtle">Updates when symbols are added/removed.</span>
@@ -115,12 +99,7 @@
         </ul>
       </section>
 
-      <section
-        class="card dashboard-tile tile-large"
-        data-tile-id="calendar"
-        draggable="true"
-        aria-labelledby="calendar-title"
-      >
+      <section class="card dashboard-tile tile-large" data-tile-id="calendar" draggable="true" aria-labelledby="calendar-title">
         <div class="card-heading">
           <h2 id="calendar-title">Market Calendar <span class="drag-handle" title="Drag tile">⠿</span></h2>
           <span class="subtle">Built-in NYSE holiday calendar (no external calendar API).</span>
@@ -147,6 +126,27 @@
         </ul>
       </section>
     </main>
+
+    <button id="toggle-trend-panel" class="trend-tab" type="button" aria-expanded="false">📉 Live Trends</button>
+
+    <aside id="trend-panel" class="trend-panel hidden" aria-label="Live trend panel">
+      <div class="trend-panel-header">
+        <h3>Live Draw Trends</h3>
+        <button id="close-trend-panel" type="button" class="secondary">Minimize</button>
+      </div>
+      <div class="trend-controls">
+        <label for="trend-symbol" class="subtle">Symbol:</label>
+        <select id="trend-symbol"></select>
+        <button id="trend-start-btn" type="button">Start</button>
+        <button id="trend-stop-btn" type="button" class="secondary">Stop</button>
+        <button id="trend-clear-btn" type="button" class="secondary">Clear</button>
+        <a id="trend-google-link" class="button-link" target="_blank" rel="noreferrer">Google Finance</a>
+      </div>
+      <div class="trend-canvas-wrap">
+        <canvas id="trend-canvas" width="1000" height="320"></canvas>
+      </div>
+      <p id="trend-status" class="subtle">Waiting to start live draw…</p>
+    </aside>
 
     <footer class="page-footer">
       <p>

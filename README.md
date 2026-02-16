@@ -28,18 +28,22 @@ A fully static **dark-mode** dashboard page designed for GitHub Pages deployment
    - Holiday labels directly on calendar days.
    - “Holidays This Month” list with holiday name + exact date.
    - Next 5 trading days, no external calendar API required.
-5. **Live Draw Trends Page (`trends.html`)**
-   - Dedicated page with a live updating trend chart for selected symbols.
-   - Uses symbols saved from the dashboard.
-   - Includes start/stop/clear controls and Google Finance shortcut.
-6. **Snap Layout Tile Reordering**
+5. **Snap Layout Tile Reordering**
    - Rearrange primary dashboard tiles by dragging.
    - Tiles snap into an even grid with consistent spacing.
    - Layout order is saved in localStorage.
+6. **One-page Minimizable Live Trend Drawer**
+   - Floating **Live Trends** tab opens a minimizable panel.
+   - Live chart for selected tracked symbol (start/stop/clear).
+   - Uses the same quote stream and symbol set as the dashboard.
+
+## GitHub Pages compatibility note
+
+The drag-and-drop tile snap behavior uses standard HTML5 Drag and Drop + CSS Grid, which is fully supported on modern desktop browsers served from GitHub Pages (no server-side features required).
 
 ## API configuration
 
-`script.js` and `trends.js` include a Finnhub token for this build:
+`script.js` includes a Finnhub token for this build:
 
 ```js
 const FINNHUB_API_KEY = "d695jlhr01qs7u9krk20d695jlhr01qs7u9krk2g";
@@ -59,7 +63,6 @@ python3 -m http.server 8080
 
 # 3) Open browser
 # http://localhost:8080
-# http://localhost:8080/trends.html
 ```
 
 Validation checks:
@@ -70,8 +73,8 @@ Validation checks:
 - Google Finance button opens symbol page from input.
 - Live Trend column changes between Rising/Falling/Flat based on quote movement.
 - Latest News section updates based on tracked symbols.
-- Live Draw Trends page draws live trend line over time.
 - Dashboard tiles can be dragged, snapped into grid positions, and reset to default layout.
+- Live trend drawer opens/minimizes and live chart updates over time.
 - Session badge changes between OPEN/CLOSED correctly.
 - Countdown timer updates each second.
 - Calendar shows the current month with holiday names on holiday days.
